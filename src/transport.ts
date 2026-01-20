@@ -14,6 +14,7 @@ import {
   TouchData,
   ScrollData,
   ScreenViewData,
+  ScreenshotData,
 } from './types';
 
 interface QueuedItem {
@@ -102,6 +103,32 @@ export class MobileTransport {
     this.enqueue('heatmap', {
       type: 'scroll',
       ...scroll,
+    });
+  }
+
+  // Screenshot
+  async sendScreenshot(screenshot: ScreenshotData): Promise<void> {
+    // Screenshots are sent immediately, not queued
+    await this.sendToBackend('/v1/sdk/screenshot', {
+      screenshot: {
+        session_id: screenshot.sessionId,
+        page_url: screenshot.screenName,
+        screenshot: screenshot.screenshot,
+        width: screenshot.width,
+        height: screenshot.height,
+        timestamp: screenshot.timestamp,
+      },
+    });
+  }
+
+  // Recording events (for session replay)
+  async sendRecordingEvents(events: any[]): Promise<void> {
+    if (events.length === 0) return;
+
+    await this.sendToBackend('/v1/rum/recordings', {
+      session_id: this.sessionId,
+      events,
+      timestamp: new Date().toISOString(),
     });
   }
 

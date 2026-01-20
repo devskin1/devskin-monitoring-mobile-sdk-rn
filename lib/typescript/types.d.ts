@@ -33,6 +33,17 @@ export interface DevSkinMobileConfig {
         trackGestures?: boolean;
         touchSampling?: number;
     };
+    screenshotOptions?: {
+        enabled?: boolean;
+        captureOnScreenChange?: boolean;
+        quality?: number;
+        maxWidth?: number;
+        maxHeight?: number;
+    };
+    recordingOptions?: {
+        enabled?: boolean;
+        flushInterval?: number;
+    };
     networkOptions?: {
         ignoreUrls?: RegExp[];
         captureHeaders?: boolean;
@@ -234,6 +245,14 @@ export interface ScreenViewData {
     previousScreen?: string;
     renderTime?: number;
     properties?: Record<string, any>;
+}
+export interface ScreenshotData {
+    sessionId: string;
+    screenName: string;
+    screenshot: string;
+    width: number;
+    height: number;
+    timestamp: string;
 }
 export interface UserInteraction {
     type: 'tap' | 'long_press' | 'swipe' | 'scroll' | 'input' | 'gesture';

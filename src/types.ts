@@ -43,6 +43,21 @@ export interface DevSkinMobileConfig {
     touchSampling?: number; // 0-1, default 1 (100%)
   };
 
+  // Screenshot Capture
+  screenshotOptions?: {
+    enabled?: boolean;
+    captureOnScreenChange?: boolean;
+    quality?: number; // 0-1, default 0.7
+    maxWidth?: number; // default 375
+    maxHeight?: number; // default 812
+  };
+
+  // Session Recording (for replay)
+  recordingOptions?: {
+    enabled?: boolean;
+    flushInterval?: number; // in milliseconds, default 5000
+  };
+
   // Network Monitoring
   networkOptions?: {
     ignoreUrls?: RegExp[];
@@ -276,6 +291,16 @@ export interface ScreenViewData {
   previousScreen?: string;
   renderTime?: number;
   properties?: Record<string, any>;
+}
+
+// Screenshot Data
+export interface ScreenshotData {
+  sessionId: string;
+  screenName: string;
+  screenshot: string; // base64 encoded image
+  width: number;
+  height: number;
+  timestamp: string;
 }
 
 // User Interaction

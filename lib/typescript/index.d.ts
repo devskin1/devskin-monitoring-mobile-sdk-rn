@@ -28,6 +28,7 @@ declare class DevSkinMobileSDK {
     private networkCollector;
     private performanceCollector;
     private heatmapCollector;
+    private recordingCollector;
     private deviceInfo;
     private appInfo;
     private appState;
@@ -71,13 +72,34 @@ declare class DevSkinMobileSDK {
      */
     addBreadcrumb(breadcrumb: Omit<Breadcrumb, 'timestamp'>): void;
     /**
-     * Track a touch event (for heatmaps)
+     * Track a touch event (for heatmaps and recording)
      */
-    trackTouch(type: 'tap' | 'longPress' | 'swipe', x: number, y: number, _extra?: Record<string, any>): void;
+    trackTouch(type: 'tap' | 'longPress' | 'swipe', x: number, y: number, extra?: Record<string, any>): void;
     /**
-     * Track scroll for heatmaps
+     * Track scroll for heatmaps and recording
      */
     trackScroll(scrollY: number, contentHeight: number, viewportHeight: number): void;
+    /**
+     * Capture and send a screenshot of the current screen
+     * Requires react-native-view-shot to be installed
+     *
+     * @example
+     * import { captureScreen } from 'react-native-view-shot';
+     *
+     * const uri = await captureScreen({ format: 'jpg', quality: 0.7 });
+     * await DevSkin.captureScreenshot(uri);
+     */
+    captureScreenshot(imageUri: string, options?: {
+        width?: number;
+        height?: number;
+    }): Promise<void>;
+    /**
+     * Capture screenshot from base64 directly (no file system needed)
+     */
+    captureScreenshotFromBase64(base64Image: string, options?: {
+        width?: number;
+        height?: number;
+    }): Promise<void>;
     /**
      * Report a custom performance metric
      */
@@ -127,5 +149,6 @@ export { NetworkCollector } from './collectors/network';
 export { PerformanceCollector } from './collectors/performance';
 export { HeatmapCollector } from './collectors/heatmap';
 export { DeviceCollector } from './collectors/device';
+export { RecordingCollector } from './collectors/recording';
 export { MobileTransport } from './transport';
 //# sourceMappingURL=index.d.ts.map

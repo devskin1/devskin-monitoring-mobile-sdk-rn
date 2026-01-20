@@ -3,7 +3,7 @@
  * Handles all communication with the backend
  * Uses same endpoints as browser SDK for compatibility
  */
-import { DevSkinMobileConfig, EventData, UserData, SessionData, NetworkRequest, CrashData, TouchData, ScrollData, ScreenViewData } from './types';
+import { DevSkinMobileConfig, EventData, UserData, SessionData, NetworkRequest, CrashData, TouchData, ScrollData, ScreenViewData, ScreenshotData } from './types';
 export declare class MobileTransport {
     private config;
     private queue;
@@ -28,6 +28,8 @@ export declare class MobileTransport {
     sendPerformanceMetric(metric: any): void;
     sendTouchData(touch: TouchData): void;
     sendScrollData(scroll: ScrollData): void;
+    sendScreenshot(screenshot: ScreenshotData): Promise<void>;
+    sendRecordingEvents(events: any[]): Promise<void>;
     flush(): Promise<void>;
     destroy(): void;
     private enqueue;

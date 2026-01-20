@@ -28,6 +28,7 @@ import { NetworkCollector } from './collectors/network';
 import { PerformanceCollector } from './collectors/performance';
 import { HeatmapCollector } from './collectors/heatmap';
 import { DeviceCollector } from './collectors/device';
+import { RecordingCollector } from './collectors/recording';
 
 // Re-export types
 export * from './types';
@@ -50,6 +51,7 @@ class DevSkinMobileSDK {
   private networkCollector: NetworkCollector | null = null;
   private performanceCollector: PerformanceCollector | null = null;
   private heatmapCollector: HeatmapCollector | null = null;
+  private recordingCollector: RecordingCollector | null = null;
 
   // State
   private deviceInfo: MobileDeviceInfo | null = null;
@@ -98,6 +100,17 @@ class DevSkinMobileSDK {
         trackScrolls: true,
         trackGestures: true,
         touchSampling: 1, // 100% of touches
+      },
+      screenshotOptions: {
+        enabled: false, // Disabled by default - requires user to enable
+        captureOnScreenChange: false,
+        quality: 0.7,
+        maxWidth: 375,
+        maxHeight: 812,
+      },
+      recordingOptions: {
+        enabled: true, // Enabled by default for session replay
+        flushInterval: 5000, // 5 seconds
       },
       analytics: {
         enabled: true,
@@ -196,6 +209,9 @@ class DevSkinMobileSDK {
     // Update collectors with current screen
     this.errorCollector?.setCurrentScreen(screenName);
     this.heatmapCollector?.setCurrentScreen(screenName);
+
+    // Record screen change for session replay
+    this.recordingCollector?.recordScreenChange(screenName);
 
     // Start screen render timing
     this.performanceCollector?.startScreenRender(screenName);
@@ -298,23 +314,119 @@ class DevSkinMobileSDK {
   }
 
   /**
-   * Track a touch event (for heatmaps)
+   * Track a touch event (for heatmaps and recording)
    */
-  trackTouch(type: 'tap' | 'longPress' | 'swipe', x: number, y: number, _extra?: Record<string, any>): void {
+  trackTouch(type: 'tap' | 'longPress' | 'swipe', x: number, y: number, extra?: Record<string, any>): void {
     if (!this.isReady()) return;
 
+    // Heatmap tracking
     if (type === 'tap') {
       this.heatmapCollector?.onTouchStart(x, y);
       this.heatmapCollector?.onTouchEnd(x, y);
     }
+
+    // Recording for session replay
+    this.recordingCollector?.recordTouch(type, x, y, extra);
   }
 
   /**
-   * Track scroll for heatmaps
+   * Track scroll for heatmaps and recording
    */
   trackScroll(scrollY: number, contentHeight: number, viewportHeight: number): void {
     if (!this.isReady()) return;
+
+    // Heatmap tracking
     this.heatmapCollector?.onScroll(scrollY, contentHeight, viewportHeight);
+
+    // Recording for session replay
+    const maxScrollY = contentHeight - viewportHeight;
+    const scrollDepth = maxScrollY > 0 ? Math.min(100, Math.round((scrollY / maxScrollY) * 100)) : 100;
+    this.recordingCollector?.recordScroll(scrollY, scrollDepth);
+  }
+
+  /**
+   * Capture and send a screenshot of the current screen
+   * Requires react-native-view-shot to be installed
+   *
+   * @example
+   * import { captureScreen } from 'react-native-view-shot';
+   *
+   * const uri = await captureScreen({ format: 'jpg', quality: 0.7 });
+   * await DevSkin.captureScreenshot(uri);
+   */
+  async captureScreenshot(imageUri: string, options?: { width?: number; height?: number }): Promise<void> {
+    if (!this.isReady()) return;
+    if (!this.config?.screenshotOptions?.enabled) {
+      if (this.config?.debug) {
+        console.log('[DevSkin Mobile] Screenshot capture is disabled');
+      }
+      return;
+    }
+
+    try {
+      // Convert URI to base64 (React Native)
+      const RNFS = require('react-native-fs');
+      const base64 = await RNFS.readFile(imageUri, 'base64');
+
+      const screenshotData = {
+        sessionId: this.sessionId!,
+        screenName: this.currentScreen || 'Unknown',
+        screenshot: `data:image/jpeg;base64,${base64}`,
+        width: options?.width || this.config?.screenshotOptions?.maxWidth || 375,
+        height: options?.height || this.config?.screenshotOptions?.maxHeight || 812,
+        timestamp: new Date().toISOString(),
+      };
+
+      await this.transport!.sendScreenshot(screenshotData);
+
+      if (this.config?.debug) {
+        console.log('[DevSkin Mobile] Screenshot captured and sent for:', this.currentScreen);
+      }
+    } catch (error) {
+      if (this.config?.debug) {
+        console.error('[DevSkin Mobile] Failed to capture screenshot:', error);
+        console.log('[DevSkin Mobile] Make sure react-native-fs is installed: npm install react-native-fs');
+      }
+    }
+  }
+
+  /**
+   * Capture screenshot from base64 directly (no file system needed)
+   */
+  async captureScreenshotFromBase64(base64Image: string, options?: { width?: number; height?: number }): Promise<void> {
+    if (!this.isReady()) return;
+    if (!this.config?.screenshotOptions?.enabled) {
+      if (this.config?.debug) {
+        console.log('[DevSkin Mobile] Screenshot capture is disabled');
+      }
+      return;
+    }
+
+    try {
+      // Ensure proper base64 format
+      const screenshot = base64Image.startsWith('data:image/')
+        ? base64Image
+        : `data:image/jpeg;base64,${base64Image}`;
+
+      const screenshotData = {
+        sessionId: this.sessionId!,
+        screenName: this.currentScreen || 'Unknown',
+        screenshot,
+        width: options?.width || this.config?.screenshotOptions?.maxWidth || 375,
+        height: options?.height || this.config?.screenshotOptions?.maxHeight || 812,
+        timestamp: new Date().toISOString(),
+      };
+
+      await this.transport!.sendScreenshot(screenshotData);
+
+      if (this.config?.debug) {
+        console.log('[DevSkin Mobile] Screenshot sent for:', this.currentScreen);
+      }
+    } catch (error) {
+      if (this.config?.debug) {
+        console.error('[DevSkin Mobile] Failed to send screenshot:', error);
+      }
+    }
   }
 
   /**
@@ -378,6 +490,7 @@ class DevSkinMobileSDK {
     if (!this.isReady()) return;
 
     this.heatmapCollector?.flush();
+    await this.recordingCollector?.flush();
     await this.transport?.flush();
 
     if (this.config?.debug) {
@@ -393,6 +506,7 @@ class DevSkinMobileSDK {
 
     this.performanceCollector?.stop();
     this.heatmapCollector?.stop();
+    this.recordingCollector?.stop();
     this.transport?.destroy();
 
     this.initialized = false;
@@ -443,6 +557,12 @@ class DevSkinMobileSDK {
     this.heatmapCollector.setAnonymousId(this.anonymousId!);
     this.heatmapCollector.setScreenDimensions(width, height);
     this.heatmapCollector.start();
+
+    // Recording collector (for session replay)
+    this.recordingCollector = new RecordingCollector(this.config, this.transport);
+    this.recordingCollector.setSessionId(this.sessionId!);
+    this.recordingCollector.setScreenDimensions(width, height);
+    this.recordingCollector.start();
   }
 
   private async startSession(): Promise<void> {
@@ -509,6 +629,7 @@ class DevSkinMobileSDK {
     Dimensions.addEventListener('change', ({ window }) => {
       this.deviceCollector?.updateOrientation();
       this.heatmapCollector?.setScreenDimensions(window.width, window.height);
+      this.recordingCollector?.setScreenDimensions(window.width, window.height);
     });
   }
 
@@ -545,4 +666,5 @@ export { NetworkCollector } from './collectors/network';
 export { PerformanceCollector } from './collectors/performance';
 export { HeatmapCollector } from './collectors/heatmap';
 export { DeviceCollector } from './collectors/device';
+export { RecordingCollector } from './collectors/recording';
 export { MobileTransport } from './transport';
