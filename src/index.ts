@@ -569,16 +569,31 @@ class DevSkinMobileSDK {
     if (!this.transport || !this.sessionId) return;
 
     const platform = this.getPlatform();
+    const device = this.deviceInfo;
+    const app = this.appInfo;
 
-    const sessionData: SessionData = {
+    // Flatten device/app info into session data for the API's flat schema
+    const sessionData: any = {
       sessionId: this.sessionId,
       userId: this.userId || undefined,
       anonymousId: this.anonymousId!,
       startedAt: new Date().toISOString(),
       platform,
-      device: this.deviceInfo || undefined,
-      app: this.appInfo || undefined,
     };
+
+    // Flatten device info
+    if (device) {
+      sessionData.deviceType = device.type;
+      sessionData.deviceModel = [device.manufacturer, device.model].filter(Boolean).join(' ');
+      if (device.os) {
+        sessionData.osName = device.os.name;
+        sessionData.osVersion = device.os.version;
+      }
+      if (device.screen) {
+        sessionData.screenWidth = device.screen.width;
+        sessionData.screenHeight = device.screen.height;
+      }
+    }
 
     await this.transport.startSession(sessionData);
 
